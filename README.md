@@ -12,6 +12,24 @@ This is an initial port foundation. It includes:
 
 ## Install
 
+From GitHub using the latest release tag:
+
+```toml
+[dependencies]
+open_ai_sdk = { git = "https://github.com/skrradev/open-ai-sdk", tag = "v0.1.0" }
+tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
+```
+
+From GitHub using the current `master` branch:
+
+```toml
+[dependencies]
+open_ai_sdk = { git = "https://github.com/skrradev/open-ai-sdk", branch = "master" }
+tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
+```
+
+For local development:
+
 ```toml
 [dependencies]
 open_ai_sdk = { path = "." }
