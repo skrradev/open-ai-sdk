@@ -1,7 +1,7 @@
 //! Internal SDK core.
 //!
 //! Public applications usually import these through the crate root or
-//! [`crate::prelude`]. Resource modules use [`HttpClient`] internally so endpoint
+//! [`crate::prelude`]. Resource modules use internal HTTP plumbing so endpoint
 //! code stays focused on paths, params, and return types.
 
 mod config;

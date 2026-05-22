@@ -10,6 +10,9 @@ use crate::{
 };
 
 #[derive(Clone, Debug)]
+/// Chat namespace.
+///
+/// Use [`ChatResource::completions`] to access Chat Completions.
 pub struct ChatResource {
     client: Arc<HttpClient>,
 }
@@ -19,12 +22,14 @@ impl ChatResource {
         Self { client }
     }
 
+    /// Accesses Chat Completions operations.
     pub fn completions(&self) -> ChatCompletionsResource {
         ChatCompletionsResource::new(self.client.clone())
     }
 }
 
 #[derive(Clone, Debug)]
+/// Chat Completions operations.
 pub struct ChatCompletionsResource {
     client: Arc<HttpClient>,
 }
@@ -34,10 +39,12 @@ impl ChatCompletionsResource {
         Self { client }
     }
 
+    /// Creates a Chat Completion.
     pub async fn create(&self, params: ChatCompletionCreateParams) -> Result<ChatCompletion> {
         self.create_with_options(params, None).await
     }
 
+    /// Creates a Chat Completion with per-request options.
     pub async fn create_with_options(
         &self,
         params: ChatCompletionCreateParams,
@@ -46,6 +53,45 @@ impl ChatCompletionsResource {
         self.client.post("/chat/completions", params, options).await
     }
 
+    /// Creates a Chat Completion and parses the first assistant message as `T`.
+    ///
+    /// This is the ergonomic structured-output helper. It derives a JSON Schema
+    /// from `T`, sets `response_format` automatically, sends the request, then
+    /// deserializes the first assistant text message into `T`.
+    ///
+    /// # Type Parameters
+    ///
+    /// `T` must implement [`serde::de::DeserializeOwned`] and
+    /// [`JsonSchema`]. Derive both with `serde` and `schemars`.
+    ///
+    /// # Example
+    ///
+    /// ```no_run
+    /// use open_ai_sdk::{
+    ///     OpenAI, JsonSchema,
+    ///     resources::chat::{ChatCompletionCreateParams, ChatMessage},
+    /// };
+    /// use serde::{Deserialize, Serialize};
+    ///
+    /// #[derive(Debug, Serialize, Deserialize, JsonSchema)]
+    /// #[schemars(deny_unknown_fields)]
+    /// struct Event {
+    ///     city: String,
+    ///     date: String,
+    /// }
+    ///
+    /// # async fn run() -> open_ai_sdk::Result<()> {
+    /// let client = OpenAI::from_env()?;
+    /// let parsed = client.chat().completions().parse::<Event>(
+    ///     ChatCompletionCreateParams::new("gpt-4o")
+    ///         .message(ChatMessage::user("Extract city and date: Paris, June 3.")),
+    ///     "event",
+    /// ).await?;
+    ///
+    /// println!("{:?}", parsed.parsed);
+    /// # Ok(())
+    /// # }
+    /// ```
     pub async fn parse<T>(
         &self,
         params: ChatCompletionCreateParams,
@@ -57,6 +103,7 @@ impl ChatCompletionsResource {
         self.parse_with_options(params, schema_name, None).await
     }
 
+    /// Same as [`ChatCompletionsResource::parse`], with per-request options.
     pub async fn parse_with_options<T>(
         &self,
         params: ChatCompletionCreateParams,
@@ -72,6 +119,10 @@ impl ChatCompletionsResource {
         Ok(ParsedChatCompletion { completion, parsed })
     }
 
+    /// Creates a raw Server-Sent Events stream.
+    ///
+    /// This returns raw SSE events. Use [`ChatCompletionsResource::stream_typed`]
+    /// for parsed Chat Completion chunks.
     pub async fn stream(&self, mut params: ChatCompletionCreateParams) -> Result<SseStream> {
         params.stream = Some(true);
         self.client
@@ -79,6 +130,10 @@ impl ChatCompletionsResource {
             .await
     }
 
+    /// Creates a typed Chat Completions stream.
+    ///
+    /// Automatically sets `stream: true` and yields [`ChatCompletionChunk`]
+    /// values through [`ChatCompletionStream::next_chunk`].
     pub async fn stream_typed(
         &self,
         mut params: ChatCompletionCreateParams,
@@ -91,13 +146,19 @@ impl ChatCompletionsResource {
     }
 }
 
+/// Typed Chat Completions stream.
+///
+/// Call [`ChatCompletionStream::next_chunk`] until it returns `Ok(None)`.
 pub struct ChatCompletionStream {
     inner: SseStream,
 }
 
 #[derive(Debug, Clone)]
+/// Result returned by [`ChatCompletionsResource::parse`].
 pub struct ParsedChatCompletion<T> {
+    /// Raw Chat Completion response.
     pub completion: ChatCompletion,
+    /// Parsed value deserialized from the first assistant text message.
     pub parsed: T,
 }
 
@@ -122,6 +183,7 @@ impl ChatCompletionStream {
         Self { inner }
     }
 
+    /// Returns the next typed chunk, or `Ok(None)` after `[DONE]`.
     pub async fn next_chunk(&mut self) -> Result<Option<ChatCompletionChunk>> {
         while let Some(event) = self.inner.next_json::<serde_json::Value>().await? {
             if event == serde_json::Value::String("[DONE]".to_string()) {
@@ -132,12 +194,18 @@ impl ChatCompletionStream {
         Ok(None)
     }
 
+    /// Converts this typed stream back into the raw SSE stream.
     pub fn into_sse_stream(self) -> SseStream {
         self.inner
     }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+/// Parameters for creating a Chat Completion.
+///
+/// The type is endpoint-first and model-flexible. It includes typed fields for
+/// common official SDK parameters and an [`extra`](Self::extra) map for forward
+/// compatibility with new API parameters.
 pub struct ChatCompletionCreateParams {
     pub model: ModelId,
     pub messages: Vec<ChatMessage>,
@@ -212,6 +280,7 @@ pub struct ChatCompletionCreateParams {
 }
 
 impl ChatCompletionCreateParams {
+    /// Creates params for the given model.
     pub fn new(model: impl Into<ModelId>) -> Self {
         Self {
             model: model.into(),
